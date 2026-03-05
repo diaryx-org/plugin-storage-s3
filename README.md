@@ -2,7 +2,7 @@
 title: "S3 Storage"
 description: "S3-compatible object storage as a filesystem backend"
 id: "diaryx.storage.s3"
-version: "1.2.1"
+version: "0.1.0"
 author: "Diaryx Team"
 license: "PolyForm Shield 1.0.0"
 repository: "https://github.com/diaryx-org/plugin-storage-s3"
