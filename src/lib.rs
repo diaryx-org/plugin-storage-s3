@@ -4,10 +4,10 @@
 //! `AsyncFileSystem` trait methods. Frontend or native adapters dispatch
 //! these commands to create an S3-backed filesystem.
 
-mod host_bridge;
 mod s3_ops;
 mod sigv4;
 
+use diaryx_plugin_sdk::prelude::*;
 use extism_pdk::*;
 use s3_ops::S3Config;
 use serde_json::Value as JsonValue;
@@ -33,75 +33,28 @@ where
 }
 
 // ---------------------------------------------------------------------------
-// Protocol types
-// ---------------------------------------------------------------------------
-
-#[derive(serde::Serialize, serde::Deserialize)]
-struct GuestManifest {
-    id: String,
-    name: String,
-    version: String,
-    description: String,
-    capabilities: Vec<String>,
-    #[serde(default)]
-    ui: Vec<JsonValue>,
-    #[serde(default)]
-    commands: Vec<String>,
-    #[serde(default)]
-    cli: Vec<JsonValue>,
-}
-
-#[derive(serde::Deserialize)]
-struct CommandRequest {
-    command: String,
-    params: JsonValue,
-}
-
-#[derive(serde::Serialize)]
-struct CommandResponse {
-    success: bool,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    data: Option<JsonValue>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    error: Option<String>,
-}
-
-impl CommandResponse {
-    fn ok(data: JsonValue) -> Self {
-        Self {
-            success: true,
-            data: Some(data),
-            error: None,
-        }
-    }
-    fn ok_empty() -> Self {
-        Self {
-            success: true,
-            data: None,
-            error: None,
-        }
-    }
-    fn err(msg: impl Into<String>) -> Self {
-        Self {
-            success: false,
-            data: None,
-            error: Some(msg.into()),
-        }
-    }
-}
-
-// ---------------------------------------------------------------------------
 // Plugin exports
 // ---------------------------------------------------------------------------
 
 #[plugin_fn]
 pub fn manifest(_input: String) -> FnResult<String> {
     let m = GuestManifest {
+        protocol_version: CURRENT_PROTOCOL_VERSION,
         id: "diaryx.storage.s3".into(),
         name: "S3 Storage".into(),
         version: env!("CARGO_PKG_VERSION").into(),
         description: "S3-compatible object storage as a filesystem backend".into(),
         capabilities: vec!["custom_commands".into()],
+        requested_permissions: Some(GuestRequestedPermissions {
+            defaults: serde_json::json!({
+                "http_requests": { "include": ["all"], "exclude": [] },
+                "plugin_storage": { "include": ["all"], "exclude": [] }
+            }),
+            reasons: [
+                ("http_requests".to_string(), "Communicate with the configured S3-compatible object storage endpoint.".to_string()),
+                ("plugin_storage".to_string(), "Persist S3 connection settings for the current workspace.".to_string()),
+            ].into_iter().collect(),
+        }),
         ui: vec![
             serde_json::json!({
                 "slot": "StorageProvider",
@@ -153,7 +106,7 @@ pub fn manifest(_input: String) -> FnResult<String> {
 #[plugin_fn]
 pub fn init(_input: String) -> FnResult<String> {
     // Try to load config from storage
-    if let Ok(Some(data)) = host_bridge::storage_get("s3_config") {
+    if let Ok(Some(data)) = host::storage::get("s3_config") {
         if let Ok(config) = serde_json::from_slice::<S3Config>(&data) {
             CONFIG.with(|c| *c.borrow_mut() = Some(config));
         }
@@ -193,7 +146,7 @@ pub fn set_config(input: String) -> FnResult<String> {
     let config: S3Config = serde_json::from_str(&input)?;
     // Persist to plugin storage
     let data = serde_json::to_vec(&config)?;
-    let _ = host_bridge::storage_set("s3_config", &data);
+    let _ = host::storage::set("s3_config", &data);
     CONFIG.with(|c| *c.borrow_mut() = Some(config));
     Ok(String::new())
 }
@@ -374,7 +327,7 @@ fn dispatch_command(command: &str, params: &JsonValue) -> CommandResponse {
         "SetConfig" => match serde_json::from_value::<S3Config>(params.clone()) {
             Ok(config) => {
                 let data = serde_json::to_vec(&config).unwrap_or_default();
-                let _ = host_bridge::storage_set("s3_config", &data);
+                let _ = host::storage::set("s3_config", &data);
                 CONFIG.with(|c| *c.borrow_mut() = Some(config));
                 CommandResponse::ok_empty()
             }

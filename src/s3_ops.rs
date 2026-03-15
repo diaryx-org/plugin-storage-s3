@@ -1,6 +1,6 @@
 //! S3 REST API operations mapping to AsyncFileSystem methods.
 
-use crate::host_bridge;
+use diaryx_plugin_sdk::prelude::*;
 use crate::sigv4;
 use std::collections::HashMap;
 
@@ -90,14 +90,20 @@ impl S3Config {
     }
 }
 
+/// Get the current timestamp in seconds (converting from SDK's millisecond timestamp).
+fn get_timestamp_secs() -> Result<u64, String> {
+    let millis = host::time::timestamp_millis().map_err(|e| format!("timestamp: {e}"))?;
+    Ok(millis / 1000)
+}
+
 /// GET object — returns file content as string.
 pub fn read_file(config: &S3Config, path: &str) -> Result<String, String> {
     let url = config.object_url(path);
-    let timestamp = host_bridge::get_timestamp().map_err(|e| format!("timestamp: {e}"))?;
+    let timestamp = get_timestamp_secs()?;
     let body_hash = sigv4::sha256_hex(b"");
     let headers = config.sign_headers("GET", &url, &body_hash, &HashMap::new(), timestamp);
 
-    let resp = host_bridge::http_request(&url, "GET", &headers, None)?;
+    let resp = host::http::request("GET", &url, &headers, None)?;
     if resp.status == 200 {
         Ok(resp.body)
     } else if resp.status == 404 {
@@ -110,13 +116,13 @@ pub fn read_file(config: &S3Config, path: &str) -> Result<String, String> {
 /// GET object — returns file content as binary.
 pub fn read_binary(config: &S3Config, path: &str) -> Result<Vec<u8>, String> {
     let url = config.object_url(path);
-    let timestamp = host_bridge::get_timestamp().map_err(|e| format!("timestamp: {e}"))?;
+    let timestamp = get_timestamp_secs()?;
     let body_hash = sigv4::sha256_hex(b"");
     let headers = config.sign_headers("GET", &url, &body_hash, &HashMap::new(), timestamp);
 
-    let resp = host_bridge::http_request(&url, "GET", &headers, None)?;
+    let resp = host::http::request("GET", &url, &headers, None)?;
     if resp.status == 200 {
-        host_bridge::decode_response_body(&resp)
+        resp.body_bytes()
     } else if resp.status == 404 {
         Err(format!("NotFound: {path}"))
     } else {
@@ -128,7 +134,7 @@ pub fn read_binary(config: &S3Config, path: &str) -> Result<Vec<u8>, String> {
 pub fn write_file(config: &S3Config, path: &str, content: &str) -> Result<(), String> {
     let url = config.object_url(path);
     let body = content.as_bytes();
-    let timestamp = host_bridge::get_timestamp().map_err(|e| format!("timestamp: {e}"))?;
+    let timestamp = get_timestamp_secs()?;
     let body_hash = sigv4::sha256_hex(body);
 
     let mut extra = HashMap::new();
@@ -141,7 +147,7 @@ pub fn write_file(config: &S3Config, path: &str, content: &str) -> Result<(), St
     let mut all_headers = headers;
     all_headers.extend(extra);
 
-    let resp = host_bridge::http_request_binary(&url, "PUT", &all_headers, body)?;
+    let resp = host::http::request_binary("PUT", &url, &all_headers, body)?;
     if resp.status == 200 || resp.status == 204 {
         Ok(())
     } else {
@@ -152,7 +158,7 @@ pub fn write_file(config: &S3Config, path: &str, content: &str) -> Result<(), St
 /// PUT object — write binary content.
 pub fn write_binary(config: &S3Config, path: &str, content: &[u8]) -> Result<(), String> {
     let url = config.object_url(path);
-    let timestamp = host_bridge::get_timestamp().map_err(|e| format!("timestamp: {e}"))?;
+    let timestamp = get_timestamp_secs()?;
     let body_hash = sigv4::sha256_hex(content);
 
     let mut extra = HashMap::new();
@@ -165,7 +171,7 @@ pub fn write_binary(config: &S3Config, path: &str, content: &[u8]) -> Result<(),
     let mut all_headers = headers;
     all_headers.extend(extra);
 
-    let resp = host_bridge::http_request_binary(&url, "PUT", &all_headers, content)?;
+    let resp = host::http::request_binary("PUT", &url, &all_headers, content)?;
     if resp.status == 200 || resp.status == 204 {
         Ok(())
     } else {
@@ -179,11 +185,11 @@ pub fn write_binary(config: &S3Config, path: &str, content: &[u8]) -> Result<(),
 /// DELETE object.
 pub fn delete_file(config: &S3Config, path: &str) -> Result<(), String> {
     let url = config.object_url(path);
-    let timestamp = host_bridge::get_timestamp().map_err(|e| format!("timestamp: {e}"))?;
+    let timestamp = get_timestamp_secs()?;
     let body_hash = sigv4::sha256_hex(b"");
     let headers = config.sign_headers("DELETE", &url, &body_hash, &HashMap::new(), timestamp);
 
-    let resp = host_bridge::http_request(&url, "DELETE", &headers, None)?;
+    let resp = host::http::request("DELETE", &url, &headers, None)?;
     if resp.status == 204 || resp.status == 200 || resp.status == 404 {
         Ok(())
     } else {
@@ -194,22 +200,22 @@ pub fn delete_file(config: &S3Config, path: &str) -> Result<(), String> {
 /// HEAD object — check if file exists.
 pub fn exists(config: &S3Config, path: &str) -> Result<bool, String> {
     let url = config.object_url(path);
-    let timestamp = host_bridge::get_timestamp().map_err(|e| format!("timestamp: {e}"))?;
+    let timestamp = get_timestamp_secs()?;
     let body_hash = sigv4::sha256_hex(b"");
     let headers = config.sign_headers("HEAD", &url, &body_hash, &HashMap::new(), timestamp);
 
-    let resp = host_bridge::http_request(&url, "HEAD", &headers, None)?;
+    let resp = host::http::request("HEAD", &url, &headers, None)?;
     Ok(resp.status == 200)
 }
 
 /// HEAD object — get Last-Modified as milliseconds since epoch.
 pub fn get_modified_time(config: &S3Config, path: &str) -> Result<Option<i64>, String> {
     let url = config.object_url(path);
-    let timestamp = host_bridge::get_timestamp().map_err(|e| format!("timestamp: {e}"))?;
+    let timestamp = get_timestamp_secs()?;
     let body_hash = sigv4::sha256_hex(b"");
     let headers = config.sign_headers("HEAD", &url, &body_hash, &HashMap::new(), timestamp);
 
-    let resp = host_bridge::http_request(&url, "HEAD", &headers, None)?;
+    let resp = host::http::request("HEAD", &url, &headers, None)?;
     if resp.status == 200 {
         // Try to parse Last-Modified header (we return the timestamp in ms)
         if let Some(last_modified) = resp.headers.get("last-modified") {
@@ -239,11 +245,11 @@ pub fn list_files(config: &S3Config, dir: &str) -> Result<Vec<String>, String> {
         uri_encode_param(&prefix_with_slash)
     );
 
-    let timestamp = host_bridge::get_timestamp().map_err(|e| format!("timestamp: {e}"))?;
+    let timestamp = get_timestamp_secs()?;
     let body_hash = sigv4::sha256_hex(b"");
     let headers = config.sign_headers("GET", &url, &body_hash, &HashMap::new(), timestamp);
 
-    let resp = host_bridge::http_request(&url, "GET", &headers, None)?;
+    let resp = host::http::request("GET", &url, &headers, None)?;
     if resp.status != 200 {
         return Err(format!("S3 LIST failed ({}): {}", resp.status, resp.body));
     }
@@ -299,11 +305,11 @@ pub fn is_dir(config: &S3Config, path: &str) -> Result<bool, String> {
         uri_encode_param(&prefix_with_slash)
     );
 
-    let timestamp = host_bridge::get_timestamp().map_err(|e| format!("timestamp: {e}"))?;
+    let timestamp = get_timestamp_secs()?;
     let body_hash = sigv4::sha256_hex(b"");
     let headers = config.sign_headers("GET", &url, &body_hash, &HashMap::new(), timestamp);
 
-    let resp = host_bridge::http_request(&url, "GET", &headers, None)?;
+    let resp = host::http::request("GET", &url, &headers, None)?;
     if resp.status != 200 {
         return Ok(false);
     }
@@ -316,7 +322,7 @@ pub fn is_dir(config: &S3Config, path: &str) -> Result<bool, String> {
 pub fn move_file(config: &S3Config, from: &str, to: &str) -> Result<(), String> {
     let source_key = config.full_key(from);
     let dest_url = config.object_url(to);
-    let timestamp = host_bridge::get_timestamp().map_err(|e| format!("timestamp: {e}"))?;
+    let timestamp = get_timestamp_secs()?;
     let body_hash = sigv4::sha256_hex(b"");
 
     // COPY: PUT with x-amz-copy-source header
@@ -328,7 +334,7 @@ pub fn move_file(config: &S3Config, from: &str, to: &str) -> Result<(), String> 
     let mut all_headers = headers;
     all_headers.extend(extra);
 
-    let resp = host_bridge::http_request(&dest_url, "PUT", &all_headers, None)?;
+    let resp = host::http::request("PUT", &dest_url, &all_headers, None)?;
     if resp.status != 200 {
         return Err(format!("S3 COPY failed ({}): {}", resp.status, resp.body));
     }
@@ -340,11 +346,11 @@ pub fn move_file(config: &S3Config, from: &str, to: &str) -> Result<(), String> 
 /// HEAD bucket — test connection.
 pub fn test_connection(config: &S3Config) -> Result<(), String> {
     let url = config.base_url();
-    let timestamp = host_bridge::get_timestamp().map_err(|e| format!("timestamp: {e}"))?;
+    let timestamp = get_timestamp_secs()?;
     let body_hash = sigv4::sha256_hex(b"");
     let headers = config.sign_headers("HEAD", &url, &body_hash, &HashMap::new(), timestamp);
 
-    let resp = host_bridge::http_request(&url, "HEAD", &headers, None)?;
+    let resp = host::http::request("HEAD", &url, &headers, None)?;
     if resp.status == 200 || resp.status == 301 {
         Ok(())
     } else if resp.status == 403 {

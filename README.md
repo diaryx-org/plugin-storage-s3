@@ -2,7 +2,7 @@
 title: "S3 Storage"
 description: "S3-compatible object storage as a filesystem backend"
 id: "diaryx.storage.s3"
-version: "0.1.0"
+version: "0.1.1"
 author: "Diaryx Team"
 license: "PolyForm Shield 1.0.0"
 repository: "https://github.com/diaryx-org/plugin-storage-s3"
@@ -21,6 +21,15 @@ ui:
   - slot: SettingsTab
     id: s3-storage-settings
     label: "S3 Storage"
+requested_permissions:
+  defaults:
+    http_requests:
+      include: ["all"]
+    plugin_storage:
+      include: ["all"]
+  reasons:
+    http_requests: "Communicate with the configured S3-compatible object storage endpoint."
+    plugin_storage: "Persist S3 connection settings for the current workspace."
 ---
 
 # diaryx_storage_s3_extism

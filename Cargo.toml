@@ -1,6 +1,6 @@
 [package]
 name = "diaryx_storage_s3_extism"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2024"
 rust-version = "1.91"
 license-file = "LICENSE.md"
@@ -17,6 +17,7 @@ base64 = "0.22"
 hmac = "0.12"
 sha2 = "0.10"
 hex = "0.4"
+diaryx_plugin_sdk = { path = "../plugin-sdk", features = ["core", "http", "secrets"] }
 
 [profile.release]
 lto = "fat"
