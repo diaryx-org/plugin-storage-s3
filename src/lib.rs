@@ -38,68 +38,66 @@ where
 
 #[plugin_fn]
 pub fn manifest(_input: String) -> FnResult<String> {
-    let m = GuestManifest {
-        protocol_version: CURRENT_PROTOCOL_VERSION,
-        id: "diaryx.storage.s3".into(),
-        name: "S3 Storage".into(),
-        version: env!("CARGO_PKG_VERSION").into(),
-        description: "S3-compatible object storage as a filesystem backend".into(),
-        capabilities: vec!["custom_commands".into()],
-        requested_permissions: Some(GuestRequestedPermissions {
-            defaults: serde_json::json!({
-                "http_requests": { "include": ["all"], "exclude": [] },
-                "plugin_storage": { "include": ["all"], "exclude": [] }
-            }),
-            reasons: [
-                ("http_requests".to_string(), "Communicate with the configured S3-compatible object storage endpoint.".to_string()),
-                ("plugin_storage".to_string(), "Persist S3 connection settings for the current workspace.".to_string()),
-            ].into_iter().collect(),
+    let m = GuestManifest::new(
+        "diaryx.storage.s3",
+        "S3 Storage",
+        env!("CARGO_PKG_VERSION"),
+        "S3-compatible object storage as a filesystem backend",
+        vec!["custom_commands".into()],
+    )
+    .ui(vec![
+        serde_json::json!({
+            "slot": "StorageProvider",
+            "id": "diaryx.storage.s3",
+            "label": "Amazon S3",
+            "icon": "cloud",
+            "description": "Store files in an S3-compatible bucket"
         }),
-        ui: vec![
-            serde_json::json!({
-                "slot": "StorageProvider",
-                "id": "diaryx.storage.s3",
-                "label": "Amazon S3",
-                "icon": "cloud",
-                "description": "Store files in an S3-compatible bucket"
-            }),
-            serde_json::json!({
-                "slot": "SettingsTab",
-                "id": "s3-storage-settings",
-                "label": "S3 Storage",
-                "icon": "cloud",
-                "fields": [
-                    { "type": "Section", "label": "S3 Configuration" },
-                    { "type": "Text", "key": "bucket", "label": "Bucket", "placeholder": "my-diaryx-bucket" },
-                    { "type": "Text", "key": "region", "label": "Region", "placeholder": "us-east-1" },
-                    { "type": "Text", "key": "prefix", "label": "Prefix", "description": "Key prefix within the bucket (e.g., \"diaryx/workspace1/\")", "placeholder": "diaryx/" },
-                    { "type": "Text", "key": "endpoint", "label": "Custom Endpoint", "description": "For S3-compatible services: MinIO, Cloudflare R2, Backblaze B2, etc.", "placeholder": "https://s3.example.com" },
-                    { "type": "Text", "key": "access_key_id", "label": "Access Key ID", "placeholder": "AKIAIOSFODNN7EXAMPLE" },
-                    { "type": "Password", "key": "secret_access_key", "label": "Secret Access Key", "placeholder": "••••••••" },
-                    { "type": "Toggle", "key": "path_style", "label": "Use path-style addressing" },
-                    { "type": "Button", "label": "Test Connection", "command": "TestConnection", "variant": "outline" }
-                ]
-            }),
-        ],
-        commands: vec![
-            "ReadFile".into(),
-            "WriteFile".into(),
-            "DeleteFile".into(),
-            "Exists".into(),
-            "ListFiles".into(),
-            "ListMdFiles".into(),
-            "CreateDirAll".into(),
-            "IsDir".into(),
-            "MoveFile".into(),
-            "ReadBinary".into(),
-            "WriteBinary".into(),
-            "GetModifiedTime".into(),
-            "TestConnection".into(),
-            "GetConfig".into(),
-            "SetConfig".into(),
-        ],
-        cli: vec![],
-    };
+        serde_json::json!({
+            "slot": "SettingsTab",
+            "id": "s3-storage-settings",
+            "label": "S3 Storage",
+            "icon": "cloud",
+            "fields": [
+                { "type": "Section", "label": "S3 Configuration" },
+                { "type": "Text", "key": "bucket", "label": "Bucket", "placeholder": "my-diaryx-bucket" },
+                { "type": "Text", "key": "region", "label": "Region", "placeholder": "us-east-1" },
+                { "type": "Text", "key": "prefix", "label": "Prefix", "description": "Key prefix within the bucket (e.g., \"diaryx/workspace1/\")", "placeholder": "diaryx/" },
+                { "type": "Text", "key": "endpoint", "label": "Custom Endpoint", "description": "For S3-compatible services: MinIO, Cloudflare R2, Backblaze B2, etc.", "placeholder": "https://s3.example.com" },
+                { "type": "Text", "key": "access_key_id", "label": "Access Key ID", "placeholder": "AKIAIOSFODNN7EXAMPLE" },
+                { "type": "Password", "key": "secret_access_key", "label": "Secret Access Key", "placeholder": "••••••••" },
+                { "type": "Toggle", "key": "path_style", "label": "Use path-style addressing" },
+                { "type": "Button", "label": "Test Connection", "command": "TestConnection", "variant": "outline" }
+            ]
+        }),
+    ])
+    .commands(vec![
+        "ReadFile".into(),
+        "WriteFile".into(),
+        "DeleteFile".into(),
+        "Exists".into(),
+        "ListFiles".into(),
+        "ListMdFiles".into(),
+        "CreateDirAll".into(),
+        "IsDir".into(),
+        "MoveFile".into(),
+        "ReadBinary".into(),
+        "WriteBinary".into(),
+        "GetModifiedTime".into(),
+        "TestConnection".into(),
+        "GetConfig".into(),
+        "SetConfig".into(),
+    ])
+    .requested_permissions(GuestRequestedPermissions {
+        defaults: serde_json::json!({
+            "http_requests": { "include": ["all"], "exclude": [] },
+            "plugin_storage": { "include": ["all"], "exclude": [] }
+        }),
+        reasons: [
+            ("http_requests".to_string(), "Communicate with the configured S3-compatible object storage endpoint.".to_string()),
+            ("plugin_storage".to_string(), "Persist S3 connection settings for the current workspace.".to_string()),
+        ].into_iter().collect(),
+    });
     Ok(serde_json::to_string(&m)?)
 }
 
